@@ -1,3 +1,9 @@
+.direnv/
+.pi/*
+!.pi/settings.json
+!.pi/sandbox.json
+
+*.flag
 
 # Beads / Dolt files (added by bd init)
 .dolt/

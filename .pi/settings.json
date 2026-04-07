@@ -1,0 +1,10 @@
+{
+  "extensions": [
+    "/home/dev/pi-agent/extensions/role.ts",
+    "/home/dev/pi-agent/extensions/overloaded-error.ts",
+    "/home/dev/pi-agent/extensions/sandbox"
+  ],
+  "hooks": {
+    "paths": ["git:https://github.com/cv/pi-bd"]
+  }
+}
