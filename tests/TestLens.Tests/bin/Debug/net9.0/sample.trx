@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TestRun id="run-1" name="Test Run" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <TestDefinitions>
+    <UnitTest name="ShouldAddNumbers" id="test-1">
+      <Execution id="exec-1" />
+      <TestMethod className="MyProject.Tests.MathTests" name="ShouldAddNumbers" />
+    </UnitTest>
+    <UnitTest name="ShouldHandleNull" id="test-2">
+      <Execution id="exec-2" />
+      <TestMethod className="MyProject.Tests.MathTests" name="ShouldHandleNull" />
+    </UnitTest>
+    <UnitTest name="ShouldTimeout" id="test-3">
+      <Execution id="exec-3" />
+      <TestMethod className="MyProject.Tests.IntegrationTests" name="ShouldTimeout" />
+    </UnitTest>
+    <UnitTest name="ShouldPassCleanly" id="test-4">
+      <Execution id="exec-4" />
+      <TestMethod className="MyProject.Tests.MathTests" name="ShouldPassCleanly" />
+    </UnitTest>
+    <UnitTest name="ShouldBeSkipped" id="test-5">
+      <Execution id="exec-5" />
+      <TestMethod className="MyProject.Tests.MathTests" name="ShouldBeSkipped" />
+    </UnitTest>
+  </TestDefinitions>
+  <Results>
+    <UnitTestResult executionId="exec-1" testName="ShouldAddNumbers" outcome="Failed" duration="00:00:00.042">
+      <Output>
+        <StdOut>Setting up test context...
+Running calculation</StdOut>
+        <ErrorInfo>
+          <Message>Assert.Equal() Failure
+Expected: 42
+Actual:   0</Message>
+          <StackTrace>   at MyProject.Tests.MathTests.ShouldAddNumbers() in /src/MyProject.Tests/MathTests.cs:line 24</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="exec-2" testName="ShouldHandleNull" outcome="Failed" duration="00:00:00.008">
+      <Output>
+        <ErrorInfo>
+          <Message>System.NullReferenceException: Object reference not set to an instance of an object.</Message>
+          <StackTrace>   at MyProject.Service.Process(String input) in /src/MyProject/Service.cs:line 17
+   at MyProject.Tests.MathTests.ShouldHandleNull() in /src/MyProject.Tests/MathTests.cs:line 58</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="exec-3" testName="ShouldTimeout" outcome="Failed" duration="00:00:05.001">
+      <Output>
+        <StdOut>Connecting to service...</StdOut>
+        <StdErr>Warning: connection pool exhausted</StdErr>
+        <ErrorInfo>
+          <Message>Test exceeded timeout of 5000ms.</Message>
+          <StackTrace>   at MyProject.Tests.IntegrationTests.ShouldTimeout() in /src/MyProject.Tests/IntegrationTests.cs:line 12</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="exec-4" testName="ShouldPassCleanly" outcome="Passed" duration="00:00:00.003">
+      <Output>
+        <StdOut>All good</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="exec-5" testName="ShouldBeSkipped" outcome="NotExecuted" duration="00:00:00.000">
+    </UnitTestResult>
+  </Results>
+</TestRun>
