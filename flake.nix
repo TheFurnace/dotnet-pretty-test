@@ -11,6 +11,10 @@
       system = "x86_64-linux";
       pkgs   = nixpkgs.legacyPackages.${system};
 
+      pi = pkgs.writeShellScriptBin "pi" ''
+        exec bunx @mariozechner/pi-coding-agent "$@"
+      '';
+
       bd = pkgs.stdenv.mkDerivation {
         pname   = "beads";
         version = "1.0.0";
