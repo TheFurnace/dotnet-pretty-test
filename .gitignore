@@ -1,11 +1,13 @@
-.direnv/
-.pi/*
-!.pi/settings.json
-!.pi/sandbox.json
+# Build outputs
+bin/
+obj/
 
-*.flag
+# NuGet
+*.nupkg
+.nuget/
 
-# Beads / Dolt files (added by bd init)
-.dolt/
-*.db
-.beads-credential-key
+# dotnet tool manifest
+.config/
+
+# OS
+.DS_Store
