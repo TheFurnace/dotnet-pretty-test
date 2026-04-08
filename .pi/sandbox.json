@@ -1,7 +1,9 @@
 {
   "enabled": true,
   "paths": [
-    { "path": ".",    "access": "read-write" },
-    { "path": "/tmp", "access": "read-write" }
+    { "path": ".",                          "access": "read-write" },
+    { "path": "/tmp",                       "access": "read-write" },
+    { "path": "~/.local/share/direnv",      "access": "read-write" },
+    { "path": "~/.cache/nix",               "access": "read-write" }
   ]
 }
