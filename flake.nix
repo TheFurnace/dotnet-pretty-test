@@ -44,6 +44,7 @@
           export NUGET_PACKAGES="''${XDG_CACHE_HOME:-$HOME/.cache}/nuget/packages"
           export NUGET_HTTP_CACHE_PATH="''${XDG_CACHE_HOME:-$HOME/.cache}/nuget/http-cache"
           export NUGET_PLUGINS_CACHE_PATH="''${XDG_CACHE_HOME:-$HOME/.cache}/nuget/plugin-cache"
+          export BUN_INSTALL_CACHE_DIR="''${XDG_CACHE_HOME:-$HOME/.cache}/bun"
         '';
       };
     };

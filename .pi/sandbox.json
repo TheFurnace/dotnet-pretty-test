@@ -6,6 +6,7 @@
     { "path": "~/.local/share/direnv",      "access": "read-write" },
     { "path": "~/.cache/nix",               "access": "read-write" },
     { "path": "~/.cache/nuget",             "access": "read-write" },
+    { "path": "~/.cache/bun",               "access": "read-write" },
     { "path": "~/.local/share/.dotnet",     "access": "read-write" },
     { "path": "~/.local/share/NuGet",       "access": "read-write" },
     { "path": "~/.nuget/NuGet",             "access": "read-write" }
