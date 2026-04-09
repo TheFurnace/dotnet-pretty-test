@@ -4,7 +4,6 @@ obj/
 
 # NuGet
 *.nupkg
-.nuget/
 
 # dotnet tool manifest
 .config/

@@ -36,8 +36,11 @@
         DOTNET_NOLOGO = "1";
 
         shellHook = ''
-          # Store NuGet packages in the project rather than ~/.nuget
-          export NUGET_PACKAGES="$PWD/.nuget/packages"
+          # Store NuGet packages in the shared XDG cache dir (~/.cache/nuget/packages)
+          # rather than the per-project directory or the default ~/.nuget/packages.
+          # Shared across all dotnet projects on this machine and accessible inside
+          # nix develop without any sandbox restrictions.
+          export NUGET_PACKAGES="$HOME/.cache/nuget/packages"
         '';
       };
     };
