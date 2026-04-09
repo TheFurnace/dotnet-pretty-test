@@ -28,7 +28,8 @@ public class CalculatorTests
     [Ignore("Pending refactor — divide-by-zero behaviour under review")]
     public void DivideByZero_ShouldThrow()
     {
-        Assert.Throws<DivideByZeroException>(() => { int _ = 1 / 0; });
+        int zero = 0;
+        Assert.Throws<DivideByZeroException>(() => { int _ = 1 / zero; });
     }
 
     [Test]

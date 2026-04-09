@@ -24,8 +24,8 @@
           pkgs.bun
           bd
 
-          # .NET SDK (9 = current stable; bump to dotnet-sdk_10 when available)
-          pkgs.dotnet-sdk_9
+          # .NET SDK
+          pkgs.dotnet-sdk_10
 
           # Useful dev tools
           pkgs.git
@@ -34,8 +34,11 @@
         # Prevent dotnet from polluting the home directory
         DOTNET_CLI_TELEMETRY_OPTOUT = "1";
         DOTNET_NOLOGO = "1";
-        # Store NuGet packages in the project rather than ~/.nuget
-        NUGET_PACKAGES = toString ./. + "/.nuget/packages";
+
+        shellHook = ''
+          # Store NuGet packages in the project rather than ~/.nuget
+          export NUGET_PACKAGES="$PWD/.nuget/packages"
+        '';
       };
     };
 }

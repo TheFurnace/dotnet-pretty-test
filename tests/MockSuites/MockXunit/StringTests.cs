@@ -29,10 +29,10 @@ public class StringTests
     }
 
     [Fact]
-    public void Replace_SubstitutesSingleOccurrence()
+    public void Replace_SubstitutesAllOccurrences()
     {
-        var result = "foo bar foo".Replace("foo", "baz", count: 1);
-        Assert.Equal("baz bar foo", result);
+        var result = "foo bar foo".Replace("foo", "baz");
+        Assert.Equal("baz bar baz", result);
     }
 
     [Fact]
