@@ -5,4 +5,4 @@ export DOTNET_NOLOGO=1
 # Prevent MSBuild from keeping background worker nodes alive between invocations
 export MSBUILDDISABLENODEREUSE=1
 # Prevent VSTest testhost from blocking on stdin in non-TTY environments
-exec /nix/store/aqy0phhg4imaw94g0h8znhvwkb6nxjg0-dotnet-sdk-wrapped-9.0.312/bin/dotnet "$@" < /dev/null
+exec /nix/store/5qcdw8jlvgib086hq3m7r54g9l3p4dzn-dotnet-sdk-wrapped-10.0.201/bin/dotnet "$@" < /dev/null
