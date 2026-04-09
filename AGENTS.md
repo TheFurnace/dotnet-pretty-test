@@ -12,6 +12,27 @@ bd close <id>         # Complete work
 bd dolt push          # Push beads data to remote
 ```
 
+## Dependencies & Environment
+
+This project uses a **Nix flake** (`flake.nix`) for its dev environment.
+
+**When adding a new dependency** (runtime tool, SDK, CLI utility, etc.), add it to the flake rather than installing it globally or documenting a manual install step:
+
+```nix
+# in flake.nix → devShells.${system}.default → packages = [ ... ]
+pkgs.some-package
+```
+
+Then enter the shell to pick it up:
+
+```bash
+nix develop   # or: direnv reload  if using direnv
+```
+
+NuGet packages (C# libraries) are managed via `.csproj` `<PackageReference>` as normal — only *system-level* tools and runtimes go in the flake.
+
+---
+
 ## Non-Interactive Shell Commands
 
 **ALWAYS use non-interactive flags** with file operations to avoid hanging on confirmation prompts.
