@@ -4,6 +4,9 @@
     { "path": ".",                          "access": "read-write" },
     { "path": "/tmp",                       "access": "read-write" },
     { "path": "~/.local/share/direnv",      "access": "read-write" },
-    { "path": "~/.cache/nix",               "access": "read-write" }
+    { "path": "~/.cache/nix",               "access": "read-write" },
+    { "path": "~/.cache/nuget",             "access": "read-write" },
+    { "path": "~/.dotnet",                  "access": "read-write" },
+    { "path": "~/.nuget/NuGet",             "access": "read-write" }
   ]
 }
