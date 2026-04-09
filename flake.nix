@@ -36,11 +36,14 @@
         DOTNET_NOLOGO = "1";
 
         shellHook = ''
-          # Store NuGet packages in the shared XDG cache dir (~/.cache/nuget/packages)
-          # rather than the per-project directory or the default ~/.nuget/packages.
-          # Shared across all dotnet projects on this machine and accessible inside
-          # nix develop without any sandbox restrictions.
-          export NUGET_PACKAGES="$HOME/.cache/nuget/packages"
+          # XDG-aligned dotnet/NuGet path overrides.
+          # DOTNET_CLI_HOME: runtime appends /.dotnet, so this lands at
+          #   $XDG_DATA_HOME/.dotnet instead of ~/.dotnet
+          # All NuGet cache dirs consolidated under $XDG_CACHE_HOME/nuget/
+          export DOTNET_CLI_HOME="''${XDG_DATA_HOME:-$HOME/.local/share}"
+          export NUGET_PACKAGES="''${XDG_CACHE_HOME:-$HOME/.cache}/nuget/packages"
+          export NUGET_HTTP_CACHE_PATH="''${XDG_CACHE_HOME:-$HOME/.cache}/nuget/http-cache"
+          export NUGET_PLUGINS_CACHE_PATH="''${XDG_CACHE_HOME:-$HOME/.cache}/nuget/plugin-cache"
         '';
       };
     };
