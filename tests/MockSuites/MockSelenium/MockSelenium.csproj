@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <!--
+    Selenium tests are [Explicit] — they do not run in `dotnet test` by default.
+    To run them, pass a filter:
+      dotnet test - -filter "cat=Selenium"
+    Chrome and a matching chromedriver binary must be available on PATH.
+  -->
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.2" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="NUnit" Version="4.2.2" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
+    <PackageReference Include="Selenium.WebDriver" Version="4.27.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="NUnit.Framework" />
+    <Using Include="OpenQA.Selenium" />
+    <Using Include="OpenQA.Selenium.Chrome" />
+  </ItemGroup>
+
+</Project>
