@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Spectre.Console;
 using TestLens.Display;
 using TestLens.Runner;
@@ -152,64 +153,64 @@ public static class RunHandler
     {
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine("[bold]Running tests…[/]");
+        AnsiConsole.WriteLine();
 
+        var display = new LiveTestDisplay(projects);
         var results = new List<(TestRunResult Run, ProjectRun? Trx)>(projects.Count);
+        using var cts = new CancellationTokenSource();
 
-        await AnsiConsole.Progress()
+        await AnsiConsole.Live(display.Render())
             .AutoClear(false)
-            .HideCompleted(false)
-            .Columns(new SpinnerColumn(), new TaskDescriptionColumn())
             .StartAsync(async ctx =>
             {
-                var taskMap = projects.ToDictionary(
-                    p => p,
-                    p => ctx.AddTask(Markup.Escape(DotnetTestRunner.ProjectName(p))));
+                // Background task: advance the spinner and push a fresh renderable
+                // to the terminal at ~8 fps, independently of TRX polling.
+                var refreshTask = Task.Run(async () =>
+                {
+                    try
+                    {
+                        while (!cts.Token.IsCancellationRequested)
+                        {
+                            await Task.Delay(120, cts.Token);
+                            display.TickSpinner();
+                            ctx.UpdateTarget(display.Render());
+                        }
+                    }
+                    catch (OperationCanceledException) { }
+                });
 
                 async Task TestOne(string projectPath)
                 {
-                    var pt      = taskMap[projectPath];
                     var name    = DotnetTestRunner.ProjectName(projectPath);
                     var safeIdx = projects.IndexOf(projectPath);
                     var trxDir  = Path.Combine(runDir, $"{safeIdx:D2}-{name}");
                     var trxPath = Path.Combine(trxDir, $"{name}.trx");
                     Directory.CreateDirectory(trxDir);
 
-                    filterMap?.TryGetValue(projectPath, out var filter);
-
-                    pt.IsIndeterminate(true);
-                    pt.Description = $"{Markup.Escape(name)}  [dim]running…[/]";
-
-                    // Run the test process and poll the TRX file for live counts.
+                    var sw       = Stopwatch.StartNew();
                     var testTask = DotnetTestRunner.TestAsync(
                         projectPath, trxPath, filterMap?.GetValueOrDefault(projectPath));
 
+                    // Poll the TRX file while the test process runs so that
+                    // individual test completions appear in the live display.
                     while (!testTask.IsCompleted)
                     {
                         await Task.Delay(250);
                         if (File.Exists(trxPath))
                         {
                             var partial = TrxParser.ParsePartial(trxPath);
-                            if (partial.Total > 0)
-                                pt.Description = LiveDescription(name, partial, done: false);
+                            display.UpdateProject(projectPath, partial, done: false,
+                                exitCode: 0, sw.Elapsed);
                         }
                     }
 
                     var run = await testTask;
+                    sw.Stop();
 
-                    ProjectRun? trx = null;
-                    if (File.Exists(trxPath))
-                    {
-                        trx = TrxParser.ParsePartial(trxPath);
-                        pt.Description = LiveDescription(name, trx, done: true);
-                    }
-                    else
-                    {
-                        pt.Description = run.ExitCode == 0
-                            ? $"[green]✓[/] [bold]{Markup.Escape(name)}[/]  [dim](no TRX)[/]"
-                            : $"[red]✗[/] [bold]{Markup.Escape(name)}[/]  [red]test failed[/]";
-                    }
+                    var trx = File.Exists(trxPath) ? TrxParser.ParsePartial(trxPath) : null;
+                    display.UpdateProject(projectPath, trx, done: true,
+                        exitCode: run.ExitCode, sw.Elapsed);
 
-                    pt.StopTask();
                     lock (results) results.Add((Run: run, Trx: trx));
                 }
 
@@ -218,12 +219,18 @@ public static class RunHandler
                 else
                     foreach (var p in projects)
                         await TestOne(p);
+
+                // Stop the refresh loop and do one final render to show
+                // completed state for all projects.
+                await cts.CancelAsync();
+                await refreshTask;
+                ctx.UpdateTarget(display.Render());
             });
 
         // Return in original project order.
         return projects
             .Select(p => results.First(r => r.Run.ProjectPath == p))
-            .ToList(); // tuple fields are named Run/Trx
+            .ToList();
     }
 
     // ── --failed-from helpers ─────────────────────────────────────────────────
@@ -283,20 +290,4 @@ public static class RunHandler
     private static string EscapeFilterValue(string value) =>
         value.Replace("\\", "\\\\").Replace("(", "\\(").Replace(")", "\\)");
 
-    // ── rendering ─────────────────────────────────────────────────────────────
-
-    private static string LiveDescription(string name, ProjectRun run, bool done)
-    {
-        var icon = done
-            ? (run.Failed > 0 ? "[red]✗[/]" : "[green]✓[/]")
-            : "[yellow]▶[/]";
-
-        var counts = run.Total == 0
-            ? "[dim]0 tests[/]"
-            : $"[green]{run.Passed}[/] passed" +
-              (run.Failed  > 0 ? $"  [red bold]{run.Failed} failed[/]"  : "") +
-              (run.Skipped > 0 ? $"  [yellow]{run.Skipped} skipped[/]" : "");
-
-        return $"{icon} [bold]{Markup.Escape(name)}[/]  {counts}";
-    }
 }
