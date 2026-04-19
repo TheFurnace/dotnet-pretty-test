@@ -9,15 +9,10 @@
     let
       system = "x86_64-linux";
       pkgs   = nixpkgs.legacyPackages.${system};
-
-      pi = pkgs.writeShellScriptBin "pi" ''
-        exec bunx @mariozechner/pi-coding-agent "$@"
-      '';
     in
     {
       devShells.${system}.default = pkgs.mkShell {
         packages = [
-          pkgs.bun
 
           # .NET SDK
           pkgs.dotnet-sdk_10
