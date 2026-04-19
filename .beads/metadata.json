@@ -1,7 +1,0 @@
-{
-  "database": "dolt",
-  "backend": "dolt",
-  "dolt_mode": "embedded",
-  "dolt_database": "dotnet_pretty_test",
-  "project_id": "a70f336c-5420-4fe8-95f9-b7c5b90221e4"
-}
