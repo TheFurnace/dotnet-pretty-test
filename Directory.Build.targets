@@ -1,0 +1,20 @@
+<Project>
+  <!--
+    Fix executable permissions after build.
+
+    The dotnet SDK hardcodes chmod 755 on the native apphost binary, which
+    bypasses the ACL default:group write bit set on /home/agents/repos/.
+    This target restores g+w on the output executable so the agents group
+    can overwrite it on subsequent builds.
+  -->
+  <Target Name="FixExecutableGroupWrite"
+          AfterTargets="Build"
+          Condition="'$(OutputType)' == 'Exe' AND $([MSBuild]::IsOSPlatform('Linux'))">
+    <PropertyGroup>
+      <_AppHostPath>$(OutputPath)$(AssemblyName)</_AppHostPath>
+    </PropertyGroup>
+    <Exec Command="chmod g+w &quot;$(_AppHostPath)&quot;"
+          Condition="Exists('$(_AppHostPath)')"
+          IgnoreExitCode="false" />
+  </Target>
+</Project>
