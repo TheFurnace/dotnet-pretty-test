@@ -8,8 +8,9 @@ public static class TrxParser
 
     public static ProjectRun Parse(string trxPath)
     {
-        var projectName = InferProjectName(trxPath);
-        var results = ParseResults(trxPath);
+        var results = ParseResults(trxPath, out var assemblyName);
+        var projectName = assemblyName
+            ?? Path.GetFileNameWithoutExtension(trxPath);
         return new ProjectRun(projectName, trxPath, results);
     }
 
@@ -23,17 +24,67 @@ public static class TrxParser
         catch
         {
             // File mid-write — return empty shell so progress display doesn't crash
-            return new ProjectRun(InferProjectName(trxPath), trxPath, []);
+            return new ProjectRun(Path.GetFileNameWithoutExtension(trxPath), trxPath, []);
         }
     }
 
-    private static List<TestResult> ParseResults(string trxPath)
+    /// <summary>
+    /// Quickly extracts the assembly/project name from a TRX file without full parsing.
+    /// Returns null if the name cannot be determined.
+    /// </summary>
+    public static string? GetAssemblyName(string trxPath)
+    {
+        try
+        {
+            XDocument doc;
+            using (var stream = new FileStream(trxPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                doc = XDocument.Load(stream);
+
+            var root = doc.Root;
+            if (root is null) return null;
+
+            // Prefer TestMethod/@codeBase (preserves casing) over UnitTest/@storage.
+            var path = root
+                .Descendants(Ns + "UnitTest")
+                .Select(u => (string?)u.Element(Ns + "TestMethod")?.Attribute("codeBase"))
+                .FirstOrDefault(s => !string.IsNullOrEmpty(s));
+            path ??= root
+                .Descendants(Ns + "UnitTest")
+                .Select(u => (string?)u.Attribute("storage"))
+                .FirstOrDefault(s => !string.IsNullOrEmpty(s));
+
+            if (path is not null)
+                return Path.GetFileNameWithoutExtension(path);
+
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static List<TestResult> ParseResults(string trxPath, out string? assemblyName)
     {
         XDocument doc;
         using (var stream = new FileStream(trxPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
             doc = XDocument.Load(stream);
 
         var root = doc.Root ?? throw new InvalidDataException("TRX file has no root element.");
+
+        // Extract assembly name from the first UnitTest element.
+        // Prefer the TestMethod/@codeBase attribute (preserves original casing)
+        // over UnitTest/@storage (which is lowercased by vstest).
+        assemblyName = root
+            .Descendants(Ns + "UnitTest")
+            .Select(u => (string?)u.Element(Ns + "TestMethod")?.Attribute("codeBase"))
+            .FirstOrDefault(s => !string.IsNullOrEmpty(s));
+        assemblyName ??= root
+            .Descendants(Ns + "UnitTest")
+            .Select(u => (string?)u.Attribute("storage"))
+            .FirstOrDefault(s => !string.IsNullOrEmpty(s));
+        if (assemblyName is not null)
+            assemblyName = Path.GetFileNameWithoutExtension(assemblyName);
 
         // Build a map of testId → definition info (FQN)
         var definitions = root
@@ -92,25 +143,5 @@ public static class TrxParser
     {
         if (string.IsNullOrEmpty(value)) return TimeSpan.Zero;
         return TimeSpan.TryParse(value, out var ts) ? ts : TimeSpan.Zero;
-    }
-
-    private static string InferProjectName(string trxPath)
-    {
-        // Walk up to find a .csproj alongside the TRX, fall back to file name
-        try
-        {
-            var dir = Path.GetDirectoryName(Path.GetFullPath(trxPath));
-            while (dir is not null)
-            {
-                var csproj = Directory.GetFiles(dir, "*.csproj").FirstOrDefault();
-                if (csproj is not null)
-                    return Path.GetFileNameWithoutExtension(csproj);
-                dir = Path.GetDirectoryName(dir);
-            }
-        }
-        catch (IOException) { }
-        catch (UnauthorizedAccessException) { }
-
-        return Path.GetFileNameWithoutExtension(trxPath);
     }
 }

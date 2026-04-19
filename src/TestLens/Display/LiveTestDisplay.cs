@@ -1,13 +1,12 @@
 using Spectre.Console;
 using Spectre.Console.Rendering;
-using TestLens.Runner;
 using TestLens.Trx;
 
 namespace TestLens.Display;
 
 /// <summary>
 /// Maintains live per-project test state and renders it as a Spectre.Console renderable.
-/// Intended for use with <c>AnsiConsole.Live()</c> during the test phase.
+/// Projects are added dynamically as TRX files appear during the run.
 /// All public methods are thread-safe.
 /// </summary>
 public sealed class LiveTestDisplay
@@ -16,13 +15,12 @@ public sealed class LiveTestDisplay
 
     private sealed class RowState
     {
-        public required string     ProjectPath { get; init; }
-        public required string     Name        { get; init; }
-        public bool                Done        { get; set; }
-        public int                 ExitCode    { get; set; }
-        public ProjectRun?         Trx         { get; set; }
-        public int                 PrevCount   { get; set; }
-        public TimeSpan            Elapsed     { get; set; }
+        public required string     TrxPath   { get; init; }
+        public required string     Name      { get; set; }
+        public bool                Done      { get; set; }
+        public ProjectRun?         Trx       { get; set; }
+        public int                 PrevCount { get; set; }
+        public TimeSpan            Elapsed   { get; set; }
     }
 
     // ── individual test completion event ──────────────────────────────────────
@@ -34,7 +32,7 @@ public sealed class LiveTestDisplay
 
     // ── fields ────────────────────────────────────────────────────────────────
 
-    private readonly List<RowState>     _rows;
+    private readonly List<RowState>     _rows   = [];
     private readonly Queue<RecentEvent> _recent = new();
     private int                         _spinFrame;
     private readonly object             _lock   = new();
@@ -44,56 +42,48 @@ public sealed class LiveTestDisplay
     private static readonly string[] SpinFrames =
         ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
-    // ── construction ──────────────────────────────────────────────────────────
-
-    public LiveTestDisplay(IEnumerable<string> projectPaths)
-    {
-        _rows = projectPaths
-            .Select(p => new RowState
-            {
-                ProjectPath = p,
-                Name        = DotnetTestRunner.ProjectName(p),
-            })
-            .ToList();
-    }
-
     // ── mutations ─────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Called by each test task whenever new TRX data is available or the task completes.
+    /// Adds a new project row or updates an existing one.
+    /// Projects are identified by TRX file path.
     /// </summary>
-    public void UpdateProject(
-        string      projectPath,
-        ProjectRun? trx,
-        bool        done,
-        int         exitCode,
-        TimeSpan    elapsed)
+    public void AddOrUpdateProject(ProjectRun trx, bool done, TimeSpan elapsed)
     {
         lock (_lock)
         {
-            var row = _rows.First(r => r.ProjectPath == projectPath);
-            row.Done     = done;
-            row.ExitCode = exitCode;
-            row.Elapsed  = elapsed;
+            var row = _rows.FirstOrDefault(r =>
+                string.Equals(r.TrxPath, trx.TrxPath, StringComparison.OrdinalIgnoreCase));
 
-            if (trx is not null)
+            if (row is null)
             {
-                // Enqueue any test results that appeared since the last poll.
-                foreach (var result in trx.Results.Skip(row.PrevCount))
+                row = new RowState
                 {
-                    var icon = result.Outcome switch
-                    {
-                        TestOutcome.Passed => "[green]✓[/]",
-                        TestOutcome.Failed => "[red]✗[/]",
-                        _                 => "[grey]-[/]",
-                    };
-                    _recent.Enqueue(new RecentEvent(icon, result.TestName, result.Duration));
-                    while (_recent.Count > MaxRecent)
-                        _recent.Dequeue();
-                }
-                row.PrevCount = trx.Results.Count;
-                row.Trx       = trx;
+                    TrxPath = trx.TrxPath,
+                    Name    = trx.ProjectName,
+                };
+                _rows.Add(row);
             }
+
+            row.Done    = done;
+            row.Elapsed = elapsed;
+            row.Name    = trx.ProjectName;  // may improve as more data parsed
+
+            // Enqueue any test results that appeared since the last poll.
+            foreach (var result in trx.Results.Skip(row.PrevCount))
+            {
+                var icon = result.Outcome switch
+                {
+                    TestOutcome.Passed => "[green]✓[/]",
+                    TestOutcome.Failed => "[red]✗[/]",
+                    _                 => "[grey]-[/]",
+                };
+                _recent.Enqueue(new RecentEvent(icon, result.TestName, result.Duration));
+                while (_recent.Count > MaxRecent)
+                    _recent.Dequeue();
+            }
+            row.PrevCount = trx.Results.Count;
+            row.Trx       = trx;
         }
     }
 
@@ -108,12 +98,17 @@ public sealed class LiveTestDisplay
 
     /// <summary>
     /// Builds the current <see cref="IRenderable"/> from a snapshot of state.
-    /// Safe to call from any thread.
     /// </summary>
     public IRenderable Render()
     {
         lock (_lock)
         {
+            if (_rows.Count == 0 && _recent.Count == 0)
+            {
+                var spinner = SpinFrames[_spinFrame];
+                return new Markup($"  [yellow]{spinner}[/] [dim]Waiting for test results…[/]");
+            }
+
             var table = new Table()
                 .Border(TableBorder.Rounded)
                 .BorderColor(Color.Grey)
@@ -139,7 +134,7 @@ public sealed class LiveTestDisplay
                 new Markup(" [dim]Recent tests:[/]"),
             };
 
-            foreach (var ev in _recent)   // oldest → newest (log order, newest at bottom)
+            foreach (var ev in _recent)
             {
                 var name = ev.TestName.Length > 68
                     ? "…" + ev.TestName[^67..]
@@ -147,7 +142,7 @@ public sealed class LiveTestDisplay
 
                 parts.Add(new Markup(
                     $"  {ev.Icon}  [dim]{Markup.Escape(name)}[/]  " +
-                    $"[grey]{RunDisplay.FormatTime(ev.Duration)}[/]"));
+                    $"[grey]{SummaryDisplay.FormatTime(ev.Duration)}[/]"));
             }
 
             return new Rows(parts);
@@ -172,7 +167,7 @@ public sealed class LiveTestDisplay
                 failed  = trx.Failed  > 0 ? $"[red bold]{trx.Failed}[/]"  : "[dim]0[/]";
                 skipped = trx.Skipped > 0 ? $"[yellow]{trx.Skipped}[/]"  : "[dim]0[/]";
                 total   = trx.Total.ToString();
-                time    = $"[dim]{RunDisplay.FormatTime(row.Elapsed)}[/]";
+                time    = $"[dim]{SummaryDisplay.FormatTime(row.Elapsed)}[/]";
             }
             else
             {
@@ -192,15 +187,15 @@ public sealed class LiveTestDisplay
             failed  = hasFail ? $"[red bold]{trx.Failed}[/]"   : "0";
             skipped = trx.Skipped > 0 ? $"[yellow]{trx.Skipped}[/]" : "0";
             total   = trx.Total.ToString();
-            time    = RunDisplay.FormatTime(row.Elapsed);
+            time    = SummaryDisplay.FormatTime(row.Elapsed);
         }
         else
         {
-            // Completed but no TRX written (test process crashed, etc.).
-            icon    = row.ExitCode == 0 ? "[green]✓[/]" : "[red]✗[/]";
+            // Completed but no TRX data.
+            icon    = "[red]✗[/]";
             nameMkp = $"[bold]{Markup.Escape(row.Name)}[/]";
             passed = failed = skipped = total = "[dim]?[/]";
-            time    = RunDisplay.FormatTime(row.Elapsed);
+            time    = SummaryDisplay.FormatTime(row.Elapsed);
         }
 
         return [icon, nameMkp, passed, failed, skipped, total, time];

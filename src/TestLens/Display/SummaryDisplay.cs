@@ -1,21 +1,22 @@
 using Spectre.Console;
+using TestLens.Runner;
 using TestLens.Trx;
 
 namespace TestLens.Display;
 
 /// <summary>
-/// Renders the live build/test progress and the final summary table for the `run` command.
+/// Renders the final summary table after all tests have completed.
 /// </summary>
-public static class RunDisplay
+public static class SummaryDisplay
 {
-    // ── summary table ─────────────────────────────────────────────────────────
-
-    public static void RenderSummary(
-        IReadOnlyList<string> allProjects,
-        IReadOnlyList<Runner.BuildResult> buildResults,
-        IReadOnlyList<(Runner.TestRunResult Run, ProjectRun? Trx)> testResults)
+    public static void Render(
+        IReadOnlyList<ProjectRun> projectRuns,
+        TestRunResult runResult)
     {
         AnsiConsole.WriteLine();
+
+        if (projectRuns.Count == 0)
+            return;
 
         var table = new Table()
             .Border(TableBorder.Rounded)
@@ -24,46 +25,13 @@ public static class RunDisplay
             .AddColumn(new TableColumn("[bold]Total[/]").RightAligned())
             .AddColumn(new TableColumn("[bold]Passed[/]").RightAligned())
             .AddColumn(new TableColumn("[bold]Failed[/]").RightAligned())
-            .AddColumn(new TableColumn("[bold]Skipped[/]").RightAligned())
-            .AddColumn(new TableColumn("[bold]Time[/]").RightAligned());
+            .AddColumn(new TableColumn("[bold]Skipped[/]").RightAligned());
 
         int totalAll = 0, passedAll = 0, failedAll = 0, skippedAll = 0;
-        var totalTime = TimeSpan.Zero;
 
-        foreach (var project in allProjects)
+        foreach (var trx in projectRuns)
         {
-            var name = Runner.DotnetTestRunner.ProjectName(project);
-            var build = buildResults.FirstOrDefault(b => b.ProjectPath == project);
-
-            if (build is not null && build.ExitCode != 0)
-            {
-                table.AddRow(
-                    $"[bold]{Markup.Escape(name)}[/]",
-                    "[red]BUILD FAILED[/]",
-                    "", "", "",
-                    FormatTime(build.Elapsed));
-                continue;
-            }
-
-            var testEntry = testResults.FirstOrDefault(t => t.Run.ProjectPath == project);
-            if (testEntry == default)
-            {
-                // Project was skipped (no build result = not attempted)
-                table.AddRow($"[grey]{Markup.Escape(name)}[/]", "[grey]skipped[/]", "", "", "", "");
-                continue;
-            }
-
-            var (run, trx) = testEntry;
-
-            if (trx is null)
-            {
-                // Test ran but TRX missing / unreadable
-                var status = run.ExitCode == 0
-                    ? "[green]passed[/]"
-                    : "[red]FAILED[/]";
-                table.AddRow($"[bold]{Markup.Escape(name)}[/]", status, "", "", "", FormatTime(run.Elapsed));
-                continue;
-            }
+            var name = trx.ProjectName;
 
             var passedMkp  = trx.Failed > 0 ? trx.Passed.ToString() : $"[green]{trx.Passed}[/]";
             var failedMkp  = trx.Failed > 0 ? $"[red bold]{trx.Failed}[/]" : trx.Failed.ToString();
@@ -72,17 +40,16 @@ public static class RunDisplay
                 ? $"[red bold]{Markup.Escape(name)}[/]"
                 : $"[bold]{Markup.Escape(name)}[/]";
 
-            table.AddRow(nameMkp, trx.Total.ToString(), passedMkp, failedMkp, skippedMkp, FormatTime(run.Elapsed));
+            table.AddRow(nameMkp, trx.Total.ToString(), passedMkp, failedMkp, skippedMkp);
 
             totalAll   += trx.Total;
             passedAll  += trx.Passed;
             failedAll  += trx.Failed;
             skippedAll += trx.Skipped;
-            totalTime  += run.Elapsed;
         }
 
         // Totals footer row
-        if (testResults.Any(t => t.Trx is not null))
+        if (projectRuns.Count > 1)
         {
             table.AddEmptyRow();
             var failedTotalMkp  = failedAll  > 0 ? $"[red bold]{failedAll}[/]"  : failedAll.ToString();
@@ -90,10 +57,13 @@ public static class RunDisplay
             var skippedTotalMkp = skippedAll > 0 ? $"[yellow]{skippedAll}[/]"   : skippedAll.ToString();
 
             table.AddRow("[bold]Total[/]", $"[bold]{totalAll}[/]", passedTotalMkp,
-                         failedTotalMkp, skippedTotalMkp, FormatTime(totalTime));
+                         failedTotalMkp, skippedTotalMkp);
         }
 
         AnsiConsole.Write(table);
+
+        // Time line
+        AnsiConsole.MarkupLine($"[dim]  Total time: {FormatTime(runResult.Elapsed)}[/]");
 
         // Overall verdict line
         AnsiConsole.WriteLine();

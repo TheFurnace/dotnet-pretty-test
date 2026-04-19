@@ -80,7 +80,8 @@ public class TrxParserTests
     public void Parse_InferredProjectNameFromTrxPath()
     {
         var run = TrxParser.Parse(SampleTrx);
-        Assert.Equal("TestLens.Tests", run.ProjectName);
+        // sample.trx has no storage attribute, so falls back to filename
+        Assert.Equal("sample", run.ProjectName);
     }
 
     [Fact]
