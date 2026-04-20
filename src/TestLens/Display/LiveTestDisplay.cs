@@ -5,11 +5,13 @@ using TestLens.Trx;
 namespace TestLens.Display;
 
 /// <summary>
-/// Maintains live per-project test state and renders it as a Spectre.Console renderable.
-/// Projects are added dynamically as TRX files appear during the run.
-/// All public methods are thread-safe.
+/// Maintains live per-project test state and renders as a self-updating
+/// <see cref="IRenderable"/> that can be passed directly to
+/// <c>AnsiConsole.Live()</c>.  The spinner advances automatically on every
+/// render call (internal-state auto-mutating renderable pattern); no external
+/// tick is required.  All public methods are thread-safe.
 /// </summary>
-public sealed class LiveTestDisplay
+public sealed class LiveTestDisplay : IRenderable
 {
     // ── per-project row ───────────────────────────────────────────────────────
 
@@ -34,13 +36,20 @@ public sealed class LiveTestDisplay
 
     private readonly List<RowState>     _rows   = [];
     private readonly Queue<RecentEvent> _recent = new();
-    private int                         _spinFrame;
     private readonly object             _lock   = new();
 
     private const int MaxRecent = 10;
 
     private static readonly string[] SpinFrames =
         ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+
+    /// <summary>
+    /// Returns the current spinner frame driven by wall-clock time (~8 fps).
+    /// Reading time here means no external <c>Tick</c> call is needed — the
+    /// spinner advances on its own whenever <see cref="Render"/> is called.
+    /// </summary>
+    private static string CurrentSpinFrame =>
+        SpinFrames[(int)(Environment.TickCount64 / 120) % SpinFrames.Length];
 
     // ── mutations ─────────────────────────────────────────────────────────────
 
@@ -87,31 +96,42 @@ public sealed class LiveTestDisplay
         }
     }
 
-    /// <summary>Advances the spinner animation by one frame.</summary>
-    public void TickSpinner()
-    {
-        lock (_lock)
-            _spinFrame = (_spinFrame + 1) % SpinFrames.Length;
-    }
-
     /// <summary>Whether any project rows have been added.</summary>
     public bool HasProjects
     {
         get { lock (_lock) return _rows.Count > 0; }
     }
 
-    // ── rendering ─────────────────────────────────────────────────────────────
+    // ── IRenderable ───────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Builds the current <see cref="IRenderable"/> from a snapshot of state.
+    /// Reports a flexible width so parent containers can size us appropriately.
+    /// Min is a reasonable minimum; max fills the available terminal width.
     /// </summary>
-    public IRenderable Render()
+    public Measurement Measure(RenderOptions options, int maxWidth)
+        => new Measurement(20, maxWidth);
+
+    /// <summary>
+    /// Called by the Spectre.Console rendering pipeline (including the live-
+    /// display auto-refresh timer) to produce the current frame as segments.
+    /// Delegates to <see cref="BuildRenderable"/> so the heavy lifting stays
+    /// in one place.
+    /// </summary>
+    public IEnumerable<Segment> Render(RenderOptions options, int maxWidth)
+        => BuildRenderable().Render(options, maxWidth);
+
+    // ── internal renderable builder ───────────────────────────────────────────
+
+    /// <summary>
+    /// Builds the current <see cref="IRenderable"/> snapshot under the lock.
+    /// </summary>
+    private IRenderable BuildRenderable()
     {
         lock (_lock)
         {
             if (_rows.Count == 0 && _recent.Count == 0)
             {
-                var spinner = SpinFrames[_spinFrame];
+                var spinner = CurrentSpinFrame;
                 return new Markup($"  [yellow]{spinner}[/] [dim]Waiting for test results…[/]");
             }
 
@@ -164,7 +184,7 @@ public sealed class LiveTestDisplay
         if (!row.Done)
         {
             // Still running — show spinner and whatever partial counts we have.
-            icon    = $"[yellow]{SpinFrames[_spinFrame]}[/]";
+            icon    = $"[yellow]{CurrentSpinFrame}[/]";
             nameMkp = $"[bold]{Markup.Escape(row.Name)}[/]";
 
             if (row.Trx is { Total: > 0 } trx)

@@ -31,42 +31,33 @@ public static class TestHandler
         var sw = Stopwatch.StartNew();
         var knownFiles = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
 
-        await AnsiConsole.Live(display.Render())
+        // Pass `display` directly as the root IRenderable — the live display
+        // calls display.Render() on every auto-refresh cycle (~10 fps), so the
+        // spinner animates itself without any external tick.  ctx.Refresh() is
+        // called only when new TRX data arrives so results appear immediately.
+        await AnsiConsole.Live(display)
             .AutoClear(true)
             .StartAsync(async ctx =>
             {
-                // Single update loop: tick spinner + poll TRX + render.
-                // Using one loop avoids concurrent UpdateTarget calls which
-                // corrupt Spectre.Console's internal cursor-position tracking.
-                const int FrameMs = 120;
-                int ticksSincePoll = 0;
+                const int PollIntervalMs = 250;
 
                 while (!testTask.IsCompleted)
                 {
-                    await Task.Delay(FrameMs);
-                    display.TickSpinner();
-
-                    // Poll TRX directory ~every 250ms (every other frame)
-                    ticksSincePoll += FrameMs;
-                    if (ticksSincePoll >= 250)
-                    {
-                        PollTrxDirectory(runDir, knownFiles, display, sw.Elapsed, done: false);
-                        ticksSincePoll = 0;
-                    }
-
-                    ctx.UpdateTarget(display.Render());
+                    await Task.Delay(PollIntervalMs);
+                    PollTrxDirectory(runDir, knownFiles, display, sw.Elapsed, done: false);
+                    ctx.Refresh(); // show new TRX data immediately
                 }
 
-                // Final poll after process exits to catch any last writes
+                // Final poll after process exits to catch any last writes.
                 await Task.Delay(100);
                 PollTrxDirectory(runDir, knownFiles, display, sw.Elapsed, done: true);
-                ctx.UpdateTarget(display.Render());
+                ctx.Refresh();
             });
 
-        // Render final live state after Live context clears
-        // (only if there was actual test data to show)
+        // Render final live state after the Live context clears
+        // (only if there was actual test data to show).
         if (display.HasProjects)
-            AnsiConsole.Write(display.Render());
+            AnsiConsole.Write(display);
 
         var result = await testTask;
 
