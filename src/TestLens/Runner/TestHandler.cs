@@ -24,7 +24,6 @@ public static class TestHandler
         AnsiConsole.WriteLine();
 
         var display = new LiveTestDisplay();
-        using var cts = new CancellationTokenSource();
 
         var testTask = DotnetTestRunner.RunAsync(passthroughArgs, runDir);
 
@@ -33,40 +32,41 @@ public static class TestHandler
         var knownFiles = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
 
         await AnsiConsole.Live(display.Render())
-            .AutoClear(false)
+            .AutoClear(true)
             .StartAsync(async ctx =>
             {
-                // Background: spinner refresh at ~8 fps
-                var refreshTask = Task.Run(async () =>
-                {
-                    try
-                    {
-                        while (!cts.Token.IsCancellationRequested)
-                        {
-                            await Task.Delay(120, cts.Token);
-                            display.TickSpinner();
-                            ctx.UpdateTarget(display.Render());
-                        }
-                    }
-                    catch (OperationCanceledException) { }
-                });
+                // Single update loop: tick spinner + poll TRX + render.
+                // Using one loop avoids concurrent UpdateTarget calls which
+                // corrupt Spectre.Console's internal cursor-position tracking.
+                const int FrameMs = 120;
+                int ticksSincePoll = 0;
 
-                // Poll for new/updated TRX files
                 while (!testTask.IsCompleted)
                 {
-                    PollTrxDirectory(runDir, knownFiles, display, sw.Elapsed, done: false);
+                    await Task.Delay(FrameMs);
+                    display.TickSpinner();
+
+                    // Poll TRX directory ~every 250ms (every other frame)
+                    ticksSincePoll += FrameMs;
+                    if (ticksSincePoll >= 250)
+                    {
+                        PollTrxDirectory(runDir, knownFiles, display, sw.Elapsed, done: false);
+                        ticksSincePoll = 0;
+                    }
+
                     ctx.UpdateTarget(display.Render());
-                    await Task.Delay(250);
                 }
 
                 // Final poll after process exits to catch any last writes
                 await Task.Delay(100);
                 PollTrxDirectory(runDir, knownFiles, display, sw.Elapsed, done: true);
-
-                await cts.CancelAsync();
-                await refreshTask;
                 ctx.UpdateTarget(display.Render());
             });
+
+        // Render final live state after Live context clears
+        // (only if there was actual test data to show)
+        if (display.HasProjects)
+            AnsiConsole.Write(display.Render());
 
         var result = await testTask;
 

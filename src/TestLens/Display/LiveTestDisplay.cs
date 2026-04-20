@@ -94,6 +94,12 @@ public sealed class LiveTestDisplay
             _spinFrame = (_spinFrame + 1) % SpinFrames.Length;
     }
 
+    /// <summary>Whether any project rows have been added.</summary>
+    public bool HasProjects
+    {
+        get { lock (_lock) return _rows.Count > 0; }
+    }
+
     // ── rendering ─────────────────────────────────────────────────────────────
 
     /// <summary>
